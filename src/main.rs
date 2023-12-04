@@ -1,8 +1,7 @@
-use aoc2023::cube_game::sum_min_cubes_powers;
+use aoc2023::scratchcard::Card;
 use std::fs;
 
 fn main() {
-    let msg = fs::read_to_string("data/day2.txt").unwrap();
-    let code = sum_min_cubes_powers(&msg);
-    println!("{code}");
+    let msg = fs::read_to_string("data/day4.txt").unwrap();
+    let _sum: u32 = msg.lines().map(|line| Card::parse(&line).value()).sum();
 }
