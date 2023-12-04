@@ -1,4 +1,4 @@
-use aoc2023::EngineSchematic;
+use aoc2023::engine_schematic::EngineSchematic;
 use std::fs;
 
 #[test]

@@ -1,5 +1,5 @@
-use aoc2023::sum_game_ids;
-use aoc2023::sum_min_cubes_powers;
+use aoc2023::cube_game::sum_game_ids;
+use aoc2023::cube_game::sum_min_cubes_powers;
 use std::fs;
 
 #[test]

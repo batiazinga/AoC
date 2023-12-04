@@ -1,4 +1,4 @@
-use aoc2023::sum_min_cubes_powers;
+use aoc2023::cube_game::sum_min_cubes_powers;
 use std::fs;
 
 fn main() {
