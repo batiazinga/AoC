@@ -8,8 +8,13 @@ pub fn min_location_ex1(a: &Almanac) -> u64 {
         .unwrap()
 }
 
+pub fn min_location_ex2(a: &Almanac) -> u64 {
+    a.location_intervals()[0].start()
+}
+
 pub struct Almanac {
     seeds_ex1: Vec<u64>,
+    seed_intervals: Vec<Interval>,
     seed2soil: IntervalMapping,
     soil2fertilizer: IntervalMapping,
     fertilizer2water: IntervalMapping,
@@ -23,6 +28,7 @@ impl Almanac {
     pub fn parse(input: &str) -> Almanac {
         let mut a = Almanac {
             seeds_ex1: Vec::new(),
+            seed_intervals: Vec::new(),
             seed2soil: IntervalMapping::new(),
             soil2fertilizer: IntervalMapping::new(),
             fertilizer2water: IntervalMapping::new(),
@@ -38,6 +44,14 @@ impl Almanac {
         str_seeds[start_seeds..]
             .split_whitespace()
             .for_each(|str_num| a.seeds_ex1.push(str_num.parse().unwrap()));
+
+        for i in 0..a.seeds_ex1.len() / 2 {
+            a.seed_intervals.push(Interval {
+                start: a.seeds_ex1[2 * i],
+                range: a.seeds_ex1[2 * i + 1],
+            });
+        }
+        a.seed_intervals.sort_by(|x, y| x.start().cmp(&y.start()));
 
         lines.next();
         lines.next();
@@ -69,32 +83,70 @@ impl Almanac {
         &self.seeds_ex1.as_slice()
     }
 
+    pub fn seed_intervals(&self) -> &[Interval] {
+        &self.seed_intervals.as_slice()
+    }
+
     pub fn soil(&self, seed: u64) -> u64 {
         self.seed2soil.get(seed)
+    }
+
+    pub fn soil_intervals(&self) -> Vec<Interval> {
+        self.seed2soil.intervals(self.seed_intervals.as_slice())
     }
 
     pub fn fertilizer(&self, seed: u64) -> u64 {
         self.soil2fertilizer.get(self.soil(seed))
     }
 
+    pub fn fertilizer_intervals(&self) -> Vec<Interval> {
+        self.soil2fertilizer
+            .intervals(self.soil_intervals().as_slice())
+    }
+
     pub fn water(&self, seed: u64) -> u64 {
         self.fertilizer2water.get(self.fertilizer(seed))
+    }
+
+    pub fn water_intervals(&self) -> Vec<Interval> {
+        self.fertilizer2water
+            .intervals(self.fertilizer_intervals().as_slice())
     }
 
     pub fn light(&self, seed: u64) -> u64 {
         self.water2light.get(self.water(seed))
     }
 
+    pub fn light_intervals(&self) -> Vec<Interval> {
+        self.water2light
+            .intervals(self.water_intervals().as_slice())
+    }
+
     pub fn temperature(&self, seed: u64) -> u64 {
         self.light2temperature.get(self.light(seed))
+    }
+
+    pub fn temperature_intervals(&self) -> Vec<Interval> {
+        self.light2temperature
+            .intervals(self.light_intervals().as_slice())
     }
 
     pub fn humidity(&self, seed: u64) -> u64 {
         self.temperature2humidity.get(self.temperature(seed))
     }
 
+    pub fn humidity_intervals(&self) -> Vec<Interval> {
+        self.temperature2humidity
+            .intervals(&self.temperature_intervals().as_slice())
+    }
+
     pub fn location(&self, seed: u64) -> u64 {
         self.humidity2location.get(self.humidity(seed))
+    }
+
+    pub fn location_intervals(&self) -> Vec<Interval> {
+        self.humidity2location
+            .intervals(&self.humidity_intervals().as_slice())
     }
 }
 
@@ -111,6 +163,30 @@ fn parse_mapping(mapping: &mut IntervalMapping, lines: &mut Lines<'_>) {
     }
 }
 
+pub struct Interval {
+    start: u64,
+    range: u64,
+}
+
+impl Interval {
+    pub fn new(start: u64, end: u64) -> Interval {
+        if end < start {
+            panic!("invalid");
+        }
+        Interval {
+            start: start,
+            range: end - start,
+        }
+    }
+    pub fn start(&self) -> u64 {
+        self.start
+    }
+
+    pub fn end(&self) -> u64 {
+        self.start + self.range
+    }
+}
+
 struct SingleIntervalMapping {
     src: u64,
     dst: u64,
@@ -123,6 +199,22 @@ impl SingleIntervalMapping {
             return Some(key - self.src + self.dst);
         }
         None
+    }
+
+    fn src_start(&self) -> u64 {
+        self.src
+    }
+
+    fn src_end(&self) -> u64 {
+        self.src + self.range
+    }
+
+    fn dst_start(&self) -> u64 {
+        self.dst
+    }
+
+    fn dst_end(&self) -> u64 {
+        self.dst + self.range
     }
 }
 
@@ -140,6 +232,7 @@ impl IntervalMapping {
     fn push(&mut self, src: u64, dst: u64, range: u64) {
         self.intervals
             .push(SingleIntervalMapping { src, dst, range });
+        self.intervals.sort_by(|x, y| x.src.cmp(&y.src));
     }
 
     fn get(&self, key: u64) -> u64 {
@@ -149,6 +242,65 @@ impl IntervalMapping {
             }
         }
         key
+    }
+
+    fn intervals(&self, intervals: &[Interval]) -> Vec<Interval> {
+        let mut v: Vec<Interval> = Vec::new();
+
+        let mut interval_mapping_cursor: usize = 0;
+
+        'intervals: for interval in intervals {
+            let mut start = interval.start();
+            let end = interval.end();
+
+            loop {
+                if self.intervals.len() <= interval_mapping_cursor {
+                    break;
+                }
+                let interval_mapping = &self.intervals[interval_mapping_cursor];
+
+                if start < interval_mapping.src_start() {
+                    if end <= interval_mapping.src_start() {
+                        v.push(Interval::new(start, end));
+                        continue 'intervals;
+                    } else if end <= interval_mapping.src_end() {
+                        v.push(Interval::new(start, interval_mapping.src_start()));
+                        v.push(Interval {
+                            start: interval_mapping.dst_start(),
+                            range: end - interval_mapping.src_start(),
+                        });
+                        continue 'intervals;
+                    } else {
+                        v.push(Interval::new(start, interval_mapping.src_start()));
+                        v.push(Interval {
+                            start: interval_mapping.dst_start(),
+                            range: interval_mapping.range,
+                        });
+                        start = interval_mapping.src_end();
+                    }
+                } else if start < interval_mapping.src_end() {
+                    if end <= interval_mapping.src_end() {
+                        v.push(Interval::new(
+                            start + interval_mapping.dst_start() - interval_mapping.src_start(),
+                            end + interval_mapping.dst_start() - interval_mapping.src_start(),
+                        ));
+                        continue 'intervals;
+                    } else {
+                        v.push(Interval::new(
+                            start + interval_mapping.dst_start() - interval_mapping.src_start(),
+                            interval_mapping.dst_end(),
+                        ));
+                        start = interval_mapping.src_end();
+                    }
+                }
+                interval_mapping_cursor += 1;
+            }
+
+            v.push(Interval::new(start, end));
+        }
+
+        v.sort_by(|x, y| x.start().cmp(&y.start()));
+        v
     }
 }
 
@@ -202,6 +354,19 @@ humidity-to-location map:
     }
 
     #[test]
+    fn test_seed_intervals() {
+        let a = Almanac::parse(&INPUT);
+        let intervals = a.seed_intervals();
+        assert_eq!(intervals.len(), 2);
+
+        assert_eq!(intervals[0].start(), 55);
+        assert_eq!(intervals[0].end(), 68);
+
+        assert_eq!(intervals[1].start(), 79);
+        assert_eq!(intervals[1].end(), 93);
+    }
+
+    #[test]
     fn test_soil() {
         let a = Almanac::parse(&INPUT);
         assert_eq!(a.soil(98), 50);
@@ -214,6 +379,20 @@ humidity-to-location map:
     }
 
     #[test]
+    fn test_soil_intervals() {
+        let a = Almanac::parse(&INPUT);
+        let intervals = a.soil_intervals();
+
+        assert_eq!(intervals.len(), 2);
+
+        assert_eq!(intervals[0].start(), 57);
+        assert_eq!(intervals[0].end(), 70);
+
+        assert_eq!(intervals[1].start(), 81);
+        assert_eq!(intervals[1].end(), 95);
+    }
+
+    #[test]
     fn test_fertilizer() {
         let a = Almanac::parse(&INPUT);
         assert_eq!(a.fertilizer(79), 81);
@@ -223,12 +402,43 @@ humidity-to-location map:
     }
 
     #[test]
+    fn test_fertilizer_intervals() {
+        let a = Almanac::parse(&INPUT);
+        let intervals = a.fertilizer_intervals();
+
+        assert_eq!(intervals.len(), 2);
+
+        assert_eq!(intervals[0].start(), 57);
+        assert_eq!(intervals[0].end(), 70);
+
+        assert_eq!(intervals[1].start(), 81);
+        assert_eq!(intervals[1].end(), 95);
+    }
+
+    #[test]
     fn test_water() {
         let a = Almanac::parse(&INPUT);
         assert_eq!(a.water(79), 81);
         assert_eq!(a.water(14), 49);
         assert_eq!(a.water(55), 53);
         assert_eq!(a.water(13), 41);
+    }
+
+    #[test]
+    fn test_water_intervals() {
+        let a = Almanac::parse(&INPUT);
+        let intervals = a.water_intervals();
+
+        assert_eq!(intervals.len(), 3);
+
+        assert_eq!(intervals[0].start(), 53);
+        assert_eq!(intervals[0].end(), 57);
+
+        assert_eq!(intervals[1].start(), 61);
+        assert_eq!(intervals[1].end(), 70);
+
+        assert_eq!(intervals[2].start(), 81);
+        assert_eq!(intervals[2].end(), 95);
     }
 
     #[test]
@@ -271,5 +481,6 @@ humidity-to-location map:
     fn test_min_location() {
         let a = Almanac::parse(&INPUT);
         assert_eq!(min_location_ex1(&a), 35);
+        assert_eq!(min_location_ex2(&a), 46);
     }
 }
