@@ -14,5 +14,5 @@ fn day_5_1() {
 fn day_5_2() {
     let input = fs::read_to_string("data/day5.txt").unwrap();
     let min = min_location_ex2(&Almanac::parse(&input));
-    assert_eq!(min, 0);
+    assert_eq!(min, 99751240);
 }
