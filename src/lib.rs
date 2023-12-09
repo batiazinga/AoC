@@ -4,3 +4,4 @@ pub mod engine_schematic;
 pub mod scratchcard;
 pub mod almanac;
 pub mod race;
+pub mod oasis;
