@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 num-integer = "0.1.45"
+num = "0.4.1"
