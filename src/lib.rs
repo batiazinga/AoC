@@ -1,5 +1,6 @@
 pub mod almanac;
 pub mod calibration;
+pub mod camelcard;
 pub mod cube_game;
 pub mod desert;
 pub mod engine_schematic;
