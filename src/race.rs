@@ -1,3 +1,5 @@
+use num_integer::Roots;
+
 pub fn prod_num_possibilities(input: &str) -> u64 {
     let mut times: Vec<u64> = Vec::new();
     let mut distances: Vec<u64> = Vec::new();
@@ -43,17 +45,18 @@ pub fn num_possibilities(input: &str) -> u64 {
         .for_each(|s| str_dist.push_str(s));
     let dist = str_dist.parse::<u64>().unwrap();
 
-    let (lower, upper) = range(time, dist);
+    let (lower, upper) = range_safer(time, dist);
     upper - lower + 1
 }
 
 fn distance(time: u64, speed: u64) -> u64 {
     (time - speed) * speed
 }
+
 fn range(time: u64, dist: u64) -> (u64, u64) {
     let f_time = time as f64;
     let f_dist = dist as f64;
-    let f_range = (f_time * f_time - 4.0 * f_dist).sqrt();
+    let f_range = f_time * (1.0 - 4.0 * f_dist / f_time / f_time).sqrt();
     let f_lower = f_time / 2.0 - f_range / 2.0;
     let f_upper = f_time / 2.0 + f_range / 2.0;
 
@@ -63,6 +66,23 @@ fn range(time: u64, dist: u64) -> (u64, u64) {
     }
     let mut upper = f_upper.floor() as u64;
     if distance(time, upper) == dist {
+        upper -= 1;
+    }
+
+    (lower, upper)
+}
+
+/// Similar to range but avoids the dangerous conversion u64 -> f64 -> u64.
+fn range_safer(time: u64, dist: u64) -> (u64, u64) {
+    let range = (time * time - 4 * dist).sqrt() + 1; // slightly overestimate the range
+    let mut lower = (time - range) / 2;
+    let mut upper = (time + range) / 2;
+
+    // compensate overestimation of the range
+    while distance(time, lower) <= dist {
+        lower += 1;
+    }
+    while distance(time, upper) <= dist {
         upper -= 1;
     }
 
