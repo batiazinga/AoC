@@ -9,3 +9,4 @@ pub mod oasis;
 pub mod pipe;
 pub mod race;
 pub mod scratchcard;
+pub mod grid2d;

@@ -1,3 +1,5 @@
+use crate::grid2d::{Direction, Position};
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Tile {
     Ground,
@@ -43,49 +45,6 @@ impl Into<char> for Tile {
     }
 }
 
-pub enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
-#[derive(PartialEq, Clone, Copy)]
-pub struct Position {
-    row: usize,
-    column: usize,
-    size: (usize, usize),
-}
-
-impl Position {
-    fn new(row: usize, column: usize, size: (usize, usize)) -> Position {
-        Position { row, column, size }
-    }
-
-    pub fn to(&self, direction: Direction) -> Option<Position> {
-        match direction {
-            Direction::North => {
-                if self.row == 0 {
-                    return None;
-                }
-                return Some(Position::new(self.row - 1, self.column, self.size));
-            }
-            Direction::East => {
-                return Some(Position::new(self.row, self.column + 1, self.size));
-            }
-            Direction::South => {
-                return Some(Position::new(self.row + 1, self.column, self.size));
-            }
-            Direction::West => {
-                if self.column == 0 {
-                    return None;
-                }
-                return Some(Position::new(self.row, self.column - 1, self.size));
-            }
-        };
-    }
-}
-
 pub struct TileMap {
     tiles: Vec<Vec<Tile>>,
     start: (usize, usize),
@@ -122,15 +81,11 @@ impl TileMap {
     }
 
     fn get(&self, p: Position) -> Tile {
-        self.tiles[p.row][p.column]
+        self.tiles[p.row()][p.col()]
     }
 
     fn start(&self) -> Position {
-        Position {
-            row: self.start.0,
-            column: self.start.1,
-            size: self.size,
-        }
+        Position::new(self.start.0, self.start.1, self.size)
     }
 
     fn start_tile(&self) -> Tile {
@@ -160,7 +115,7 @@ impl TileMap {
 
         let mut west = false;
         if self.start.1 > 0 {
-            let west_tile = &self.tiles[self.start.0][self.start.1-1];
+            let west_tile = &self.tiles[self.start.0][self.start.1 - 1];
             west = *west_tile == Tile::SouthEast
                 || *west_tile == Tile::EastWest
                 || *west_tile == Tile::NorthEast;
@@ -296,13 +251,13 @@ pub fn collect_boundary(map: &TileMap) -> Vec<Vec<Option<Tile>>> {
 
     let mut from = map.start();
     let mut position = next_position_from_start(&map);
-    boundary[position.row][position.column] = Some(map.get(position).clone());
+    boundary[position.row()][position.col()] = Some(map.get(position).clone());
 
     while position != map.start() {
         let tmp = position;
         position = next_position(&map, from, position);
         from = tmp;
-        boundary[position.row][position.column] = Some(map.get(position));
+        boundary[position.row()][position.col()] = Some(map.get(position));
     }
 
     let start_tile = map.start_tile();
@@ -401,17 +356,17 @@ LJ.LJ";
         let mut a = TileMap::parse(&input);
         assert_eq!(a.start_tile(), Tile::NorthSouth);
 
-        input="FS7\nL-J";
-        a=TileMap::parse(&input);
-        assert_eq!(a.start_tile(),Tile::EastWest);
+        input = "FS7\nL-J";
+        a = TileMap::parse(&input);
+        assert_eq!(a.start_tile(), Tile::EastWest);
 
-        input="F7\nSJ";
-        a=TileMap::parse(&input);
-        assert_eq!(a.start_tile(),Tile::NorthEast);
+        input = "F7\nSJ";
+        a = TileMap::parse(&input);
+        assert_eq!(a.start_tile(), Tile::NorthEast);
 
-        input="F7\nLS";
-        a=TileMap::parse(&input);
-        assert_eq!(a.start_tile(),Tile::NorthWest);
+        input = "F7\nLS";
+        a = TileMap::parse(&input);
+        assert_eq!(a.start_tile(), Tile::NorthWest);
     }
 
     #[test]

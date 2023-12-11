@@ -13,5 +13,5 @@ fn day_7_2() {
     let input = fs::read_to_string("data/day10.txt").unwrap();
     let map = TileMap::parse(&input);
     let (count, _) = count_enclosed_tiles(&map);
-    assert_eq!(count, 0);
+    assert_eq!(count, 493);
 }
