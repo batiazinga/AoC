@@ -12,4 +12,5 @@ pub mod observatory;
 pub mod pipe;
 pub mod race;
 pub mod reflection;
+pub mod rocks;
 pub mod scratchcard;

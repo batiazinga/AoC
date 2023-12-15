@@ -1,7 +1,23 @@
-use aoc2023::scratchcard::Card;
-use std::fs;
+use aoc2023::rocks::Dish;
 
 fn main() {
-    let msg = fs::read_to_string("data/day4.txt").unwrap();
-    let _sum: u32 = msg.lines().map(|line| Card::parse(&line).value()).sum();
+    let input = "O....#....
+O.OO#....#
+.....##...
+OO.#O....O
+.O.....O#.
+O.#..O.#.#
+..O..#O..O
+.......O..
+#....###..
+#OO..#....";
+    let d = Dish::parse(&input);
+    let c1 = d.cycle();
+    println!("{}", c1);
+    println!("");
+    let c2 = c1.cycle();
+    println!("{}", c2);
+    println!("");
+    let c3 = c2.cycle();
+    println!("{}", c3);
 }
