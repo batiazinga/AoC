@@ -6,6 +6,7 @@ pub mod cube_game;
 pub mod desert;
 pub mod engine_schematic;
 mod grid2d;
+pub mod hash;
 pub mod hotsprings;
 pub mod oasis;
 pub mod observatory;
