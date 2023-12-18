@@ -1,23 +1,13 @@
-use aoc2023::rocks::Dish;
+use aoc2023::hotsprings::ConditionRecord;
+use std::fs;
 
 fn main() {
-    let input = "O....#....
-O.OO#....#
-.....##...
-OO.#O....O
-.O.....O#.
-O.#..O.#.#
-..O..#O..O
-.......O..
-#....###..
-#OO..#....";
-    let d = Dish::parse(&input);
-    let c1 = d.cycle();
-    println!("{}", c1);
-    println!("");
-    let c2 = c1.cycle();
-    println!("{}", c2);
-    println!("");
-    let c3 = c2.cycle();
-    println!("{}", c3);
+    let input = fs::read_to_string("data/day12.txt").unwrap();
+    let mut sum = 0u64;
+    for line in input.lines() {
+        let count = ConditionRecord::parse(line).unfold(2).count_arrangements();
+        sum += count;
+        println!("{}", count);
+    }
+    println!("{}", sum);
 }

@@ -45,9 +45,9 @@ impl ConditionRecord {
         record
     }
 
-    pub fn unfold(&self) -> ConditionRecord {
+    pub fn unfold(&self, n: u64) -> ConditionRecord {
         let mut record = ConditionRecord {
-            states: Vec::with_capacity((self.states.len() + 1) * 5 - 1),
+            states: Vec::with_capacity((self.states.len() + 1) * (n as usize) - 1),
             group_sizes: Vec::with_capacity(self.group_sizes.len() * 5),
         };
 
@@ -104,6 +104,33 @@ impl ConditionRecord {
         group_sizes(completed.as_slice()) == self.group_sizes
     }
 
+    fn is_valid_so_far(&self, candidate: &[State]) -> bool {
+        let mut candidate_cursor = 0usize;
+        let mut partial: Vec<State> = Vec::with_capacity(self.states.len());
+        for state in &self.states {
+            if state == &State::Unknown && candidate_cursor < candidate.len() {
+                partial.push(candidate[candidate_cursor].clone());
+                candidate_cursor += 1;
+            } else {
+                partial.push(state.clone());
+            }
+        }
+
+        let candiate_group_sizes = group_sizes(partial.as_slice());
+        for i in 0..candiate_group_sizes.len() {
+            if i < candiate_group_sizes.len() - 1 {
+                if candiate_group_sizes[i] != self.group_sizes[i] {
+                    return false;
+                }
+            } else {
+                if candiate_group_sizes[i] > self.group_sizes[i] {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     pub fn count_arrangements(&self) -> u64 {
         let mut count = 0u64;
         self.generate_candidates_and_count(
@@ -123,7 +150,7 @@ impl ConditionRecord {
         &self,
         num_ones: u64,
         remaining_bits: u64,
-        number: u64,
+        number: u128,
         cursor: u64,
         counter: &mut u64,
     ) {
@@ -132,6 +159,10 @@ impl ConditionRecord {
             if self.is_valid_candidate(candidate.as_slice()) {
                 *counter += 1;
             }
+            return;
+        }
+
+        if !self.is_valid_so_far(to_states(number, cursor).as_slice()) {
             return;
         }
 
@@ -170,7 +201,9 @@ fn group_sizes(states: &[State]) -> Vec<u64> {
                     size = 0;
                 }
             }
-            State::Unknown => panic!("cannot compute group sizes with unknown states"),
+            State::Unknown => {
+                break;
+            }
         }
     }
     if size != 0 {
@@ -180,7 +213,7 @@ fn group_sizes(states: &[State]) -> Vec<u64> {
     sizes
 }
 
-fn to_states(number: u64, num_bits: u64) -> Vec<State> {
+fn to_states(number: u128, num_bits: u64) -> Vec<State> {
     let mut states: Vec<State> = Vec::with_capacity(num_bits as usize);
     for i in 0..num_bits {
         let mask = 1 << i;
@@ -208,9 +241,33 @@ mod tests {
 
     #[test]
     fn test_compute_group_sizes() {
-        let record = ConditionRecord::parse("#.#.### 1,1,3");
-        let group_sizes = group_sizes(record.states.as_slice());
-        assert_eq!(group_sizes, record.group_sizes);
+        assert_eq!(
+            group_sizes(&[State::Damaged, State::Operational, State::Damaged]),
+            &[1, 1]
+        );
+        assert_eq!(
+            group_sizes(&[
+                State::Damaged,
+                State::Operational,
+                State::Damaged,
+                State::Operational,
+                State::Damaged,
+                State::Damaged,
+                State::Damaged
+            ]),
+            &[1, 1, 3]
+        );
+        assert_eq!(
+            group_sizes(&[
+                State::Operational,
+                State::Damaged,
+                State::Operational,
+                State::Damaged,
+                State::Unknown,
+                State::Damaged
+            ]),
+            &[1, 1]
+        );
     }
 
     #[test]
@@ -223,6 +280,16 @@ mod tests {
             State::Operational,
             State::Damaged
         ]));
+    }
+
+    #[test]
+    fn test_is_valid_so_far() {
+        let record = ConditionRecord::parse("?#?#?#?#?#?#?#? 1,3,1,6");
+
+        assert!(record.is_valid_so_far(&[State::Operational]));
+        assert!(!record.is_valid_so_far(&[State::Damaged]));
+        assert!(record.is_valid_so_far(&[State::Operational, State::Operational]));
+        assert!(!record.is_valid_so_far(&[State::Operational, State::Damaged]));
     }
 
     #[test]
@@ -277,36 +344,36 @@ mod tests {
     #[test]
     fn test_unfolded_count_arrangements_1() {
         let record = ConditionRecord::parse("???.### 1,1,3");
-        assert_eq!(record.unfold().count_arrangements(), 1);
+        assert_eq!(record.unfold(5).count_arrangements(), 1);
     }
 
-    // #[test]
-    // fn test_unfolded_count_arrangements_2() {
-    //     let record = ConditionRecord::parse(".??..??...?##. 1,1,3");
-    //     assert_eq!(record.unfold().count_arrangements(), 16384);
-    // }
+    #[test]
+    fn test_unfolded_count_arrangements_2() {
+        let record = ConditionRecord::parse(".??..??...?##. 1,1,3");
+        assert_eq!(record.unfold(5).count_arrangements(), 16384);
+    }
 
-    // #[test]
-    // fn test_unfolded_count_arrangements_3() {
-    //     let record = ConditionRecord::parse("?#?#?#?#?#?#?#? 1,3,1,6");
-    //     assert_eq!(record.unfold().count_arrangements(), 1);
-    // }
+    #[test]
+    fn test_unfolded_count_arrangements_3() {
+        let record = ConditionRecord::parse("?#?#?#?#?#?#?#? 1,3,1,6");
+        assert_eq!(record.unfold(5).count_arrangements(), 1);
+    }
 
     #[test]
     fn test_unfolded_count_arrangements_4() {
         let record = ConditionRecord::parse("????.#...#... 4,1,1");
-        assert_eq!(record.unfold().count_arrangements(), 16);
+        assert_eq!(record.unfold(5).count_arrangements(), 16);
     }
 
     #[test]
     fn test_unfolded_count_arrangements_5() {
         let record = ConditionRecord::parse("????.######..#####. 1,6,5");
-        assert_eq!(record.unfold().count_arrangements(), 2500);
+        assert_eq!(record.unfold(5).count_arrangements(), 2500);
     }
 
-    // #[test]
-    // fn test_unfolded_count_arrangements_6() {
-    //     let record = ConditionRecord::parse("?###???????? 3,2,1");
-    //     assert_eq!(record.unfold().count_arrangements(), 506250);
-    // }
+    #[test]
+    fn test_unfolded_count_arrangements_6() {
+        let record = ConditionRecord::parse("?###???????? 3,2,1");
+        assert_eq!(record.unfold(5).count_arrangements(), 506250);
+    }
 }
