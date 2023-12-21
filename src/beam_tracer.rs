@@ -1,3 +1,5 @@
+use crate::grid2d::Direction;
+use crate::grid2d::Position;
 use std::collections::HashSet;
 use std::fmt;
 
@@ -20,6 +22,10 @@ impl EnergyMap {
         }
 
         count
+    }
+
+    fn energize(&mut self, p: &Position) {
+        self.content[p.row()][p.col()] = '#';
     }
 }
 
@@ -80,18 +86,25 @@ impl Contraption {
         c
     }
 
-    pub fn trace_beam(&self) -> EnergyMap {
-        self.trace_beam_from((0, 0), (0, 1))
+    fn get(&self, p: &Position) -> char {
+        self.content[p.row()][p.col()]
     }
 
-    fn trace_beam_from(&self, pos: (i32, i32), incr: (i32, i32)) -> EnergyMap {
+    pub fn trace_beam(&self) -> EnergyMap {
+        self.trace_beam_from(
+            Position::new(0, 0, (self.num_rows, self.num_cols)),
+            Direction::East,
+        )
+    }
+
+    fn trace_beam_from(&self, pos: Position, incr: Direction) -> EnergyMap {
         let mut m = EnergyMap {
             content: vec![vec!['.'; self.num_cols]; self.num_rows],
             num_rows: self.num_rows,
             num_cols: self.num_cols,
         };
 
-        let mut visited: HashSet<(i32, i32, i32, i32)> = HashSet::new();
+        let mut visited: HashSet<(usize, usize, Direction)> = HashSet::new();
         self.rec_trace_beam(&mut m, &mut visited, pos, incr);
 
         m
@@ -100,47 +113,53 @@ impl Contraption {
     fn rec_trace_beam(
         &self,
         m: &mut EnergyMap,
-        visited: &mut HashSet<(i32, i32, i32, i32)>,
-        pos: (i32, i32),
-        incr: (i32, i32),
+        visited: &mut HashSet<(usize, usize, Direction)>,
+        pos: Position,
+        incr: Direction,
     ) {
-        if visited.contains(&(pos.0, pos.1, incr.0, incr.1)) {
+        let key = (pos.row(), pos.col(), incr.clone());
+        if visited.contains(&key) {
             return;
         }
-        visited.insert((pos.0, pos.1, incr.0, incr.1));
+        visited.insert(key);
 
         let mut position = pos;
         let mut increment = incr;
         loop {
-            if self.content[position.0 as usize][position.1 as usize] == '-' && increment.0 != 0 {
-                self.rec_trace_beam(m, visited, position, (0, 1));
-                self.rec_trace_beam(m, visited, position, (0, -1));
+            if self.get(&position) == '-' && increment.is_south_north() {
+                self.rec_trace_beam(m, visited, position, Direction::East);
+                self.rec_trace_beam(m, visited, position, Direction::West);
                 break;
             }
-            if self.content[position.0 as usize][position.1 as usize] == '|' && increment.1 != 0 {
-                self.rec_trace_beam(m, visited, position, (-1, 0));
-                self.rec_trace_beam(m, visited, position, (1, 0));
+            if self.get(&position) == '|' && increment.is_east_west() {
+                self.rec_trace_beam(m, visited, position, Direction::North);
+                self.rec_trace_beam(m, visited, position, Direction::South);
                 break;
             }
 
-            m.content[position.0 as usize][position.1 as usize] = '#';
+            m.energize(&position);
 
-            increment = match self.content[position.0 as usize][position.1 as usize] {
-                '\\' => (increment.1, increment.0),
-                '/' => (-increment.1, -increment.0),
+            increment = match self.get(&position) {
+                '\\' => match increment {
+                    Direction::East => Direction::South,
+                    Direction::South => Direction::East,
+                    Direction::West => Direction::North,
+                    Direction::North => Direction::West,
+                },
+                '/' => match increment {
+                    Direction::East => Direction::North,
+                    Direction::North => Direction::East,
+                    Direction::West => Direction::South,
+                    Direction::South => Direction::West,
+                },
                 _ => increment,
             };
 
-            let next = (position.0 + increment.0, position.1 + increment.1);
-            if next.0 == -1
-                || next.0 as usize == self.num_rows
-                || next.1 == -1
-                || next.1 as usize == self.num_cols
-            {
+            if let Some(next) = position.to(increment.clone()) {
+                position = next;
+            } else {
                 break;
             }
-
-            position = next;
         }
     }
 
@@ -148,28 +167,38 @@ impl Contraption {
         let mut max = 0u64;
 
         for j in 0..self.num_cols {
-            let count = self.trace_beam_from((0, j as i32), (1, 0)).num_energized();
+            let count = self
+                .trace_beam_from(Position::new(0, j, (self.num_rows, self.num_cols)), Direction::South)
+                .num_energized();
             if count > max {
                 max = count;
             }
         }
         for j in 0..self.num_cols {
             let count = self
-                .trace_beam_from(((self.num_rows as i32) - 1, j as i32), (-1, 0))
+                .trace_beam_from(
+                    Position::new(self.num_rows - 1, j, (self.num_rows, self.num_cols)),
+                    Direction::North,
+                )
                 .num_energized();
             if count > max {
                 max = count;
             }
         }
         for i in 0..self.num_rows {
-            let count = self.trace_beam_from((i as i32, 0), (0, 1)).num_energized();
+            let count = self
+                .trace_beam_from(Position::new(i, 0, (self.num_rows, self.num_cols)), Direction::East)
+                .num_energized();
             if count > max {
                 max = count;
             }
         }
         for i in 0..self.num_rows {
             let count = self
-                .trace_beam_from((i as i32, (self.num_cols as i32) - 1), (0, -1))
+                .trace_beam_from(
+                    Position::new(i, self.num_cols - 1, (self.num_rows, self.num_cols)),
+                    Direction::West,
+                )
                 .num_energized();
             if count > max {
                 max = count;
