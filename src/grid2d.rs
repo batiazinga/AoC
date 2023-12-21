@@ -1,4 +1,4 @@
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Direction {
     North,
     East,

@@ -4,18 +4,25 @@ use std::collections::HashSet;
 use std::fmt;
 
 pub struct EnergyMap {
-    content: Vec<Vec<char>>,
+    content: Vec<Vec<bool>>,
     num_rows: usize,
     num_cols: usize,
 }
 
 impl EnergyMap {
+    fn new(num_rows: usize, num_cols: usize) -> EnergyMap {
+        EnergyMap {
+            content: vec![vec![false; num_cols]; num_rows],
+            num_rows,
+            num_cols,
+        }
+    }
     pub fn num_energized(&self) -> u64 {
         let mut count = 0u64;
 
         for i in 0..self.num_rows {
             for j in 0..self.num_cols {
-                if self.content[i][j] == '#' {
+                if self.content[i][j] {
                     count += 1;
                 }
             }
@@ -25,7 +32,7 @@ impl EnergyMap {
     }
 
     fn energize(&mut self, p: &Position) {
-        self.content[p.row()][p.col()] = '#';
+        self.content[p.row()][p.col()] = true;
     }
 }
 
@@ -38,7 +45,7 @@ impl fmt::Display for EnergyMap {
         let mut s = String::with_capacity(self.num_rows * (self.num_cols + 1) - 1);
         for i in 0..self.num_rows {
             for j in 0..self.num_cols {
-                s.push(self.content[i][j]);
+                s.push(if self.content[i][j] { '#' } else { '.' });
             }
             if i < self.num_rows - 1 {
                 s.push('\n');
@@ -48,8 +55,41 @@ impl fmt::Display for EnergyMap {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Device {
+    NorthWestMirror,
+    NorthEastMirror,
+    HorizontalSplitter,
+    VerticalSplitter,
+}
+
+impl TryFrom<char> for Device {
+    type Error = &'static str;
+
+    fn try_from(c: char) -> Result<Self, Self::Error> {
+        match c {
+            '\\' => Ok(Device::NorthWestMirror),
+            '/' => Ok(Device::NorthEastMirror),
+            '-' => Ok(Device::HorizontalSplitter),
+            '|' => Ok(Device::VerticalSplitter),
+            _ => Err("invalid device character"),
+        }
+    }
+}
+
+impl Into<char> for &Device {
+    fn into(self) -> char {
+        match self {
+            Device::NorthWestMirror => '\\',
+            Device::NorthEastMirror => '/',
+            Device::HorizontalSplitter => '-',
+            Device::VerticalSplitter => '|',
+        }
+    }
+}
+
 pub struct Contraption {
-    content: Vec<Vec<char>>,
+    content: Vec<Vec<Option<Device>>>,
     num_rows: usize,
     num_cols: usize,
 }
@@ -65,9 +105,12 @@ impl Contraption {
         let mut is_first_line: bool = true;
         for line in input.lines() {
             if is_first_line {
-                let mut row: Vec<char> = Vec::new();
+                let mut row: Vec<Option<Device>> = Vec::new();
                 for c in line.chars() {
-                    row.push(c);
+                    row.push(match Device::try_from(c) {
+                        Ok(device) => Some(device),
+                        Err(_) => None,
+                    });
                 }
                 c.num_cols = row.len();
                 c.content.push(row);
@@ -75,9 +118,12 @@ impl Contraption {
                 continue;
             }
 
-            let mut row: Vec<char> = Vec::with_capacity(c.num_cols);
+            let mut row: Vec<Option<Device>> = Vec::with_capacity(c.num_cols);
             for c in line.chars() {
-                row.push(c);
+                row.push(match Device::try_from(c) {
+                    Ok(device) => Some(device),
+                    Err(_) => None,
+                });
             }
             c.content.push(row);
         }
@@ -86,7 +132,7 @@ impl Contraption {
         c
     }
 
-    fn get(&self, p: &Position) -> char {
+    fn get(&self, p: &Position) -> Option<Device> {
         self.content[p.row()][p.col()]
     }
 
@@ -98,11 +144,7 @@ impl Contraption {
     }
 
     fn trace_beam_from(&self, pos: Position, incr: Direction) -> EnergyMap {
-        let mut m = EnergyMap {
-            content: vec![vec!['.'; self.num_cols]; self.num_rows],
-            num_rows: self.num_rows,
-            num_cols: self.num_cols,
-        };
+        let mut m = EnergyMap::new(self.num_rows, self.num_cols);
 
         let mut visited: HashSet<(usize, usize, Direction)> = HashSet::new();
         self.rec_trace_beam(&mut m, &mut visited, pos, incr);
@@ -117,7 +159,7 @@ impl Contraption {
         pos: Position,
         incr: Direction,
     ) {
-        let key = (pos.row(), pos.col(), incr.clone());
+        let key = (pos.row(), pos.col(), incr);
         if visited.contains(&key) {
             return;
         }
@@ -126,36 +168,44 @@ impl Contraption {
         let mut position = pos;
         let mut increment = incr;
         loop {
-            if self.get(&position) == '-' && increment.is_south_north() {
-                self.rec_trace_beam(m, visited, position, Direction::East);
-                self.rec_trace_beam(m, visited, position, Direction::West);
-                break;
-            }
-            if self.get(&position) == '|' && increment.is_east_west() {
-                self.rec_trace_beam(m, visited, position, Direction::North);
-                self.rec_trace_beam(m, visited, position, Direction::South);
-                break;
-            }
-
             m.energize(&position);
 
-            increment = match self.get(&position) {
-                '\\' => match increment {
-                    Direction::East => Direction::South,
-                    Direction::South => Direction::East,
-                    Direction::West => Direction::North,
-                    Direction::North => Direction::West,
-                },
-                '/' => match increment {
-                    Direction::East => Direction::North,
-                    Direction::North => Direction::East,
-                    Direction::West => Direction::South,
-                    Direction::South => Direction::West,
-                },
-                _ => increment,
-            };
+            if let Some(device) = self.get(&position) {
+                match device {
+                    Device::HorizontalSplitter => {
+                        if increment.is_south_north() {
+                            self.rec_trace_beam(m, visited, position, Direction::East);
+                            self.rec_trace_beam(m, visited, position, Direction::West);
+                            break;
+                        }
+                    }
+                    Device::VerticalSplitter => {
+                        if increment.is_east_west() {
+                            self.rec_trace_beam(m, visited, position, Direction::North);
+                            self.rec_trace_beam(m, visited, position, Direction::South);
+                            break;
+                        }
+                    }
+                    Device::NorthWestMirror => {
+                        increment = match increment {
+                            Direction::East => Direction::South,
+                            Direction::South => Direction::East,
+                            Direction::West => Direction::North,
+                            Direction::North => Direction::West,
+                        }
+                    }
+                    Device::NorthEastMirror => {
+                        increment = match increment {
+                            Direction::East => Direction::North,
+                            Direction::North => Direction::East,
+                            Direction::West => Direction::South,
+                            Direction::South => Direction::West,
+                        }
+                    }
+                }
+            }
 
-            if let Some(next) = position.to(increment.clone()) {
+            if let Some(next) = position.to(increment) {
                 position = next;
             } else {
                 break;
@@ -168,7 +218,10 @@ impl Contraption {
 
         for j in 0..self.num_cols {
             let count = self
-                .trace_beam_from(Position::new(0, j, (self.num_rows, self.num_cols)), Direction::South)
+                .trace_beam_from(
+                    Position::new(0, j, (self.num_rows, self.num_cols)),
+                    Direction::South,
+                )
                 .num_energized();
             if count > max {
                 max = count;
@@ -187,7 +240,10 @@ impl Contraption {
         }
         for i in 0..self.num_rows {
             let count = self
-                .trace_beam_from(Position::new(i, 0, (self.num_rows, self.num_cols)), Direction::East)
+                .trace_beam_from(
+                    Position::new(i, 0, (self.num_rows, self.num_cols)),
+                    Direction::East,
+                )
                 .num_energized();
             if count > max {
                 max = count;
@@ -218,7 +274,10 @@ impl fmt::Display for Contraption {
         let mut s = String::with_capacity(self.num_rows * (self.num_cols + 1) - 1);
         for i in 0..self.num_rows {
             for j in 0..self.num_cols {
-                s.push(self.content[i][j]);
+                s.push(match &self.content[i][j] {
+                    None => '.',
+                    Some(device) => device.into(),
+                });
             }
             if i < self.num_rows - 1 {
                 s.push('\n');
