@@ -1,6 +1,8 @@
-use aoc2023::beam_tracer::Contraption;
+use aoc2023::heatloss::LossMap;
 
 fn main() {
-    let c = Contraption::parse("..\\.\n....\n..-.");
-    c.trace_beam();
+    let m = LossMap::parse("21111111\n22288222");
+    // let m = LossMap::parse("211\n222");
+    println!("{}", m);
+    println!("shortest path distance = {}",m.shortest_path());
 }
