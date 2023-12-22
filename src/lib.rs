@@ -10,6 +10,7 @@ mod grid2d;
 pub mod hash;
 pub mod heatloss;
 pub mod hotsprings;
+pub mod lavaduct;
 pub mod oasis;
 pub mod observatory;
 pub mod pipe;
