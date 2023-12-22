@@ -27,6 +27,16 @@ fn direction_from_str(s: &str) -> Option<Direction> {
     }
 }
 
+fn direction_from_str_digit(s: &str) -> Option<Direction> {
+    match s {
+        "0" => Some(Direction::East),
+        "1" => Some(Direction::South),
+        "2" => Some(Direction::West),
+        "3" => Some(Direction::North),
+        _ => None,
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Lagoon {
     Border,
@@ -122,6 +132,21 @@ pub fn read_dig_plan(input: &str) -> Vec<Instruction> {
         let dir = direction_from_str(parts.next().unwrap()).unwrap();
         let num_steps: usize = parts.next().unwrap().parse().unwrap();
         instructions.push(Instruction { dir, num_steps });
+    }
+
+    instructions
+}
+
+pub fn read_dig_plan_correctly(input: &str) -> Vec<Instruction> {
+    let mut instructions: Vec<Instruction> = Vec::new();
+
+    for line in input.lines() {
+        let sharp_idx = line.find('#').unwrap();
+        let parenth_idx = line.find(')').unwrap();
+        instructions.push(Instruction {
+            dir: direction_from_str_digit(&line[parenth_idx - 1..parenth_idx]).unwrap(),
+            num_steps: usize::from_str_radix(&line[sharp_idx + 1..parenth_idx - 1], 16).unwrap(),
+        })
     }
 
     instructions
@@ -232,6 +257,28 @@ U 2 (#7a21e3)";
 
         assert_eq!(instructions[13].direction(), Direction::North);
         assert_eq!(instructions[13].num_steps(), 2);
+    }
+
+    #[test]
+    fn test_read_instructions_correctly() {
+        let instructions = read_dig_plan_correctly(&INPUT);
+
+        assert_eq!(instructions.len(), 14);
+
+        assert_eq!(instructions[0].direction(), Direction::East);
+        assert_eq!(instructions[0].num_steps(), 461937);
+
+        assert_eq!(instructions[1].direction(), Direction::South);
+        assert_eq!(instructions[1].num_steps(), 56407);
+
+        assert_eq!(instructions[2].direction(), Direction::East);
+        assert_eq!(instructions[2].num_steps(), 356671);
+
+        assert_eq!(instructions[6].direction(), Direction::West);
+        assert_eq!(instructions[6].num_steps(), 577262);
+
+        assert_eq!(instructions[13].direction(), Direction::North);
+        assert_eq!(instructions[13].num_steps(), 500254);
     }
 
     #[test]
