@@ -1,12 +1,12 @@
-use aoc2023::hotsprings::ConditionRecord;
+use aoc2023::hotsprings::read_records;
 use std::fs;
 
 #[test]
 fn day_12_1() {
     let input = fs::read_to_string("data/day12.txt").unwrap();
     let mut sum = 0u64;
-    for line in input.lines() {
-        sum += ConditionRecord::parse(line).count_arrangements();
+    for record in read_records(&input) {
+        sum += record.count_arrangements();
     }
     assert_eq!(sum, 7361);
 }

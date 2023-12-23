@@ -20,7 +20,7 @@ impl TryFrom<char> for State {
 
 pub struct ConditionRecord {
     states: Vec<State>,
-    group_sizes: Vec<u64>,
+    group_sizes: Vec<usize>,
 }
 
 impl ConditionRecord {
@@ -39,7 +39,7 @@ impl ConditionRecord {
         let group_sizes_start = input.find(|c: char| c.is_digit(10)).unwrap();
         input[group_sizes_start..]
             .split(',')
-            .map(|s| s.parse::<u64>().unwrap())
+            .map(|s| s.parse::<usize>().unwrap())
             .for_each(|n| record.group_sizes.push(n));
 
         record
@@ -66,11 +66,11 @@ impl ConditionRecord {
         record
     }
 
-    fn num_damaged(&self) -> u64 {
+    fn num_damaged(&self) -> usize {
         self.group_sizes.iter().sum()
     }
 
-    fn num_known_damaged(&self) -> u64 {
+    fn num_known_damaged(&self) -> usize {
         let mut count = 0;
         self.states.iter().for_each(|s| match s {
             State::Damaged => count += 1,
@@ -79,7 +79,7 @@ impl ConditionRecord {
         count
     }
 
-    fn num_unknown(&self) -> u64 {
+    fn num_unknown(&self) -> usize {
         let mut count = 0;
         self.states.iter().for_each(|s| match s {
             State::Unknown => count += 1,
@@ -88,7 +88,7 @@ impl ConditionRecord {
         count
     }
 
-    fn is_valid_candidate(&self, candidate: &[State]) -> bool {
+    fn is_valid(&self, candidate: &[State]) -> bool {
         let mut candidate_cursor = 0usize;
         let mut completed: Vec<State> = Vec::with_capacity(self.states.len());
         for state in &self.states {
@@ -142,56 +142,61 @@ impl ConditionRecord {
         count
     }
 
-    fn generate_candidates_and_count(&self, num_damaged: u64, num_unknown: u64, counter: &mut u64) {
-        self.rec_generate_candidates_and_count(num_damaged, num_unknown, 0, 0, counter);
+    fn generate_candidates_and_count(
+        &self,
+        num_damaged_left: usize,
+        num_unknown: usize,
+        counter: &mut u64,
+    ) {
+        let mut candidate: Vec<State> = vec![State::Unknown; num_unknown as usize];
+        self.rec_generate_candidates_and_count(num_damaged_left, &mut candidate, 0, counter);
     }
 
     fn rec_generate_candidates_and_count(
         &self,
-        num_ones: u64,
-        remaining_bits: u64,
-        number: u128,
-        cursor: u64,
+        num_damaged_left: usize,
+        candidate: &mut Vec<State>,
+        cursor: usize,
         counter: &mut u64,
     ) {
-        if cursor == self.num_unknown() {
-            let candidate = to_states(number, self.num_unknown());
-            if self.is_valid_candidate(candidate.as_slice()) {
+        if cursor == candidate.len() {
+            if self.is_valid(candidate.as_slice()) {
                 *counter += 1;
             }
             return;
         }
 
-        if !self.is_valid_so_far(to_states(number, cursor).as_slice()) {
+        if !self.is_valid_so_far(candidate.as_slice()) {
             return;
         }
 
-        if num_ones > 0 {
-            let cp = number | 1 << cursor;
+        if num_damaged_left > 0 {
+            candidate[cursor] = State::Damaged;
             self.rec_generate_candidates_and_count(
-                num_ones - 1,
-                remaining_bits - 1,
-                cp,
+                num_damaged_left - 1,
+                candidate,
                 cursor + 1,
                 counter,
             );
+            candidate[cursor] = State::Unknown;
         }
-        if remaining_bits > num_ones {
+        if candidate.len() - cursor > num_damaged_left as usize {
+            candidate[cursor] = State::Operational;
             self.rec_generate_candidates_and_count(
-                num_ones,
-                remaining_bits - 1,
-                number,
+                num_damaged_left,
+                candidate,
                 cursor + 1,
                 counter,
             );
+            candidate[cursor] = State::Unknown;
         }
     }
 }
 
-fn group_sizes(states: &[State]) -> Vec<u64> {
-    let mut sizes: Vec<u64> = Vec::new();
+fn group_sizes(states: &[State]) -> Vec<usize> {
+    let mut sizes: Vec<usize> = Vec::new();
 
-    let mut size = 0u64;
+    let mut size = 0usize;
     for s in states {
         match s {
             State::Damaged => size += 1,
@@ -213,17 +218,14 @@ fn group_sizes(states: &[State]) -> Vec<u64> {
     sizes
 }
 
-fn to_states(number: u128, num_bits: u64) -> Vec<State> {
-    let mut states: Vec<State> = Vec::with_capacity(num_bits as usize);
-    for i in 0..num_bits {
-        let mask = 1 << i;
-        if number & mask != 0 {
-            states.push(State::Damaged);
-        } else {
-            states.push(State::Operational);
-        }
+pub fn read_records(input: &str) -> Vec<ConditionRecord> {
+    let mut records: Vec<ConditionRecord> = Vec::new();
+
+    for line in input.lines() {
+        records.push(ConditionRecord::parse(line));
     }
-    states
+
+    records
 }
 
 #[cfg(test)]
@@ -274,12 +276,8 @@ mod tests {
     fn test_is_valid_candidate() {
         let record = ConditionRecord::parse("???.### 1,1,3");
 
-        assert!(record.is_valid_candidate(&[State::Damaged, State::Operational, State::Damaged]));
-        assert!(!record.is_valid_candidate(&[
-            State::Operational,
-            State::Operational,
-            State::Damaged
-        ]));
+        assert!(record.is_valid(&[State::Damaged, State::Operational, State::Damaged]));
+        assert!(!record.is_valid(&[State::Operational, State::Operational, State::Damaged]));
     }
 
     #[test]
@@ -290,19 +288,6 @@ mod tests {
         assert!(!record.is_valid_so_far(&[State::Damaged]));
         assert!(record.is_valid_so_far(&[State::Operational, State::Operational]));
         assert!(!record.is_valid_so_far(&[State::Operational, State::Damaged]));
-    }
-
-    #[test]
-    fn test_to_states() {
-        assert_eq!(
-            to_states(3, 4),
-            &[
-                State::Damaged,
-                State::Damaged,
-                State::Operational,
-                State::Operational
-            ]
-        );
     }
 
     #[test]
