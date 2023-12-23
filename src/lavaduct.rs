@@ -1,10 +1,12 @@
 use crate::grid2d::Direction;
 use crate::grid2d::Position;
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt;
 
 pub struct Instruction {
     dir: Direction,
-    num_steps: usize,
+    num_steps: u32,
 }
 
 impl Instruction {
@@ -12,7 +14,7 @@ impl Instruction {
         self.dir
     }
 
-    pub fn num_steps(&self) -> usize {
+    pub fn num_steps(&self) -> u32 {
         self.num_steps
     }
 }
@@ -130,7 +132,7 @@ pub fn read_dig_plan(input: &str) -> Vec<Instruction> {
     for line in input.lines() {
         let mut parts = line.split_whitespace();
         let dir = direction_from_str(parts.next().unwrap()).unwrap();
-        let num_steps: usize = parts.next().unwrap().parse().unwrap();
+        let num_steps: u32 = parts.next().unwrap().parse().unwrap();
         instructions.push(Instruction { dir, num_steps });
     }
 
@@ -145,7 +147,7 @@ pub fn read_dig_plan_correctly(input: &str) -> Vec<Instruction> {
         let parenth_idx = line.find(')').unwrap();
         instructions.push(Instruction {
             dir: direction_from_str_digit(&line[parenth_idx - 1..parenth_idx]).unwrap(),
-            num_steps: usize::from_str_radix(&line[sharp_idx + 1..parenth_idx - 1], 16).unwrap(),
+            num_steps: u32::from_str_radix(&line[sharp_idx + 1..parenth_idx - 1], 16).unwrap(),
         })
     }
 
@@ -197,7 +199,7 @@ pub fn dig(instructions: &[Instruction]) -> DigMap {
     let mut pos = Position::new(calibration.0, calibration.1, (calibration.2, calibration.3));
     for instruction in instructions {
         m.dig_at(&pos, instruction.direction());
-        let mut counter = 0usize;
+        let mut counter = 0u32;
         while counter < instruction.num_steps() {
             pos = pos.to(instruction.direction()).unwrap();
 
@@ -208,6 +210,108 @@ pub fn dig(instructions: &[Instruction]) -> DigMap {
     }
 
     m
+}
+
+pub fn dug_volume(instructions: &[Instruction]) -> u64 {
+    let mut horizontal_boundaries: Vec<(i64, i64, i64)> = Vec::new();
+    let mut x_coordinates_set: HashSet<i64> = HashSet::new();
+    let mut y_coordinates_set: HashSet<i64> = HashSet::new();
+
+    let mut pos = (0i64, 0i64);
+    for i in 0..instructions.len() {
+        let previous = &instructions[if i == 0 {
+            instructions.len() - 1
+        } else {
+            i - 1
+        }];
+        let current = &instructions[i];
+        let next = &instructions[if i == instructions.len() - 1 {
+            0
+        } else {
+            i + 1
+        }];
+        match current.direction() {
+            // /!\ again, assuming clockwise direction
+            Direction::East => {
+                let mut left = pos.1;
+                if previous.direction() == Direction::South {
+                    left += 1;
+                }
+                let mut right = pos.1 + current.num_steps() as i64;
+                if next.direction() == Direction::South {
+                    right += 1;
+                }
+                x_coordinates_set.insert(pos.0);
+                y_coordinates_set.insert(left);
+                y_coordinates_set.insert(right);
+                horizontal_boundaries.push((pos.0, left, right));
+                pos = (pos.0, pos.1 + current.num_steps() as i64);
+            }
+            Direction::West => {
+                let mut left = pos.1 - current.num_steps() as i64;
+                if next.direction() == Direction::South {
+                    left += 1;
+                }
+                let mut right = pos.1;
+                if previous.direction() == Direction::South {
+                    right += 1;
+                }
+                x_coordinates_set.insert(pos.0 + 1);
+                y_coordinates_set.insert(left);
+                y_coordinates_set.insert(right);
+                horizontal_boundaries.push((pos.0 + 1, left, right));
+                pos = (pos.0, pos.1 - current.num_steps() as i64);
+            }
+            Direction::North => {
+                pos = (pos.0 - current.num_steps() as i64, pos.1);
+            }
+            Direction::South => {
+                pos = (pos.0 + current.num_steps() as i64, pos.1);
+            }
+        }
+    }
+
+    let mut x_coordinates = Vec::from_iter(x_coordinates_set.iter());
+    x_coordinates.sort();
+    let mut y_coordinates = Vec::from_iter(y_coordinates_set.iter());
+    y_coordinates.sort();
+    horizontal_boundaries.sort_by(|x, y| {
+        let ord = x.0.cmp(&y.0);
+        match ord {
+            Ordering::Equal => x.1.cmp(&y.1),
+            _ => ord,
+        }
+    });
+
+    let mut volume = 0u64;
+    for i in 1..x_coordinates.len() {
+        let x_center = (x_coordinates[i] + x_coordinates[i - 1]) / 2;
+        for j in 1..y_coordinates.len() {
+            let y_center = (y_coordinates[j] + y_coordinates[j - 1]) / 2;
+
+            let mut inside = false;
+            for b in horizontal_boundaries.as_slice() {
+                if y_center < b.1 || y_center >= b.2 {
+                    continue;
+                }
+                if x_center >= b.0 {
+                    if inside {
+                        inside = false;
+                    } else {
+                        inside = true;
+                    }
+                } else {
+                    break;
+                }
+            }
+            if inside {
+                volume += ((x_coordinates[i] - x_coordinates[i - 1]) as u64)
+                    * ((y_coordinates[j] - y_coordinates[j - 1]) as u64)
+            }
+        }
+    }
+
+    volume
 }
 
 #[cfg(test)]
@@ -282,16 +386,45 @@ U 2 (#7a21e3)";
     }
 
     #[test]
-    fn test_min_grid_size() {
-        let instructions = read_dig_plan(&INPUT);
-        assert_eq!(calibrate_grid(instructions.as_slice()), (0, 0, 10, 7));
-    }
-
-    #[test]
     fn test_count_dug() {
         let instructions = read_dig_plan(&INPUT);
         let dig_map = dig(instructions.as_slice());
         assert_eq!(format!("{}", dig_map), OUTPUT_MAP);
         assert_eq!(dig_map.volume(), 62);
+    }
+
+    #[test]
+    fn test_dig_low_memory_small_example() {
+        let instructions = read_dig_plan(&INPUT);
+        assert_eq!(dug_volume(instructions.as_slice()), 62);
+    }
+
+    #[test]
+    fn test_dig_low_memory_large_example() {
+        let instructions = read_dig_plan_correctly(&INPUT);
+        assert_eq!(dug_volume(instructions.as_slice()), 952_408_144_115);
+    }
+
+    #[test]
+    fn test_dig_low_memory_square() {
+        let instructions = vec![
+            Instruction {
+                dir: Direction::East,
+                num_steps: 999,
+            },
+            Instruction {
+                dir: Direction::South,
+                num_steps: 299,
+            },
+            Instruction {
+                dir: Direction::West,
+                num_steps: 999,
+            },
+            Instruction {
+                dir: Direction::North,
+                num_steps: 299,
+            },
+        ];
+        assert_eq!(dug_volume(instructions.as_slice()), 300_000);
     }
 }
