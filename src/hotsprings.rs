@@ -94,60 +94,44 @@ impl ConditionRecord {
         let min_required_size: usize = self.group_sizes[groups.len()..].iter().sum::<usize>()
             + (self.group_sizes.len() - groups.len() - 1);
         for i in cursor..self.states.len() - min_required_size + 1 {
-            groups.push(PositionedGroup {
+            let new_group = PositionedGroup {
                 size: group_size,
                 position: i,
-            });
-
-            if self.is_valid(groups.as_slice()) {
+            };
+            if self.can_add(
+                &new_group,
+                cursor,
+                groups.len() == self.group_sizes.len() - 1,
+            ) {
+                groups.push(new_group);
                 self.rec_count_arrangements(groups, i + required_size, count);
+                groups.pop();
             }
-
-            groups.pop();
         }
     }
 
-    fn is_valid(&self, groups: &[PositionedGroup]) -> bool {
-        if groups.len() == 0 {
-            return true;
-        }
-
-        for i in 0..groups[0].position {
+    fn can_add(&self, new_group: &PositionedGroup, cursor: usize, is_last_group: bool) -> bool {
+        for i in cursor..new_group.position {
             if self.states[i] == State::Damaged {
                 return false;
             }
         }
-
-        for i in 0..groups.len() {
-            let group = &groups[i];
-            for j in 0..group.size {
-                if self.states[group.position + j] == State::Operational {
-                    return false;
-                }
-            }
-            if i < groups.len() - 1 {
-                let next_group = &groups[i + 1];
-                for j in (group.position + group.size)..next_group.position {
-                    if self.states[j] == State::Damaged {
-                        return false;
-                    }
-                }
+        for i in new_group.position..new_group.position + new_group.size {
+            if self.states[i] == State::Operational {
+                return false;
             }
         }
-
-        let last_group = &groups[groups.len() - 1];
-        if groups.len() == self.group_sizes.len() {
-            for i in last_group.position + last_group.size..self.states.len() {
+        if is_last_group {
+            for i in new_group.position + new_group.size..self.states.len() {
                 if self.states[i] == State::Damaged {
                     return false;
                 }
             }
         } else {
-            if self.states[last_group.position + last_group.size] == State::Damaged {
+            if self.states[new_group.position + new_group.size] == State::Damaged {
                 return false;
             }
         }
-
         true
     }
 }
