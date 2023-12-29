@@ -17,4 +17,5 @@ pub mod pipe;
 pub mod race;
 pub mod reflection;
 pub mod rocks;
+pub mod sandslabs;
 pub mod scratchcard;
