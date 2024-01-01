@@ -69,10 +69,6 @@ mod graph {
             self.vertices[v]
         }
 
-        fn next_vertices(&self, v: usize) -> impl Iterator<Item = &usize> {
-            self.edges[v].keys()
-        }
-
         fn edge_multiplicity(&self, x: usize, y: usize) -> u32 {
             if let Some(multiplicity) = self.edges[x].get(&y) {
                 return *multiplicity;
@@ -201,32 +197,6 @@ mod graph {
         }
 
         #[test]
-        fn test_graph_with_edges() {
-            let mut g = Contractable::new();
-            let v0 = g.create_vertex();
-            let v1 = g.create_vertex();
-            let v2 = g.create_vertex();
-            let v3 = g.create_vertex();
-            g.connect(v0, v1);
-            g.connect(v1, v2);
-            g.connect(v0, v3);
-            g.connect(v2, v3);
-            g.connect(v1, v3);
-
-            let v0_neighbours = Vec::from_iter(g.next_vertices(v0));
-            assert_eq!(v0_neighbours.len(), 2);
-
-            let v1_neighbours = Vec::from_iter(g.next_vertices(v1));
-            assert_eq!(v1_neighbours.len(), 3);
-
-            let v2_neighbours = Vec::from_iter(g.next_vertices(v2));
-            assert_eq!(v2_neighbours.len(), 2);
-
-            let v3_neighbours = Vec::from_iter(g.next_vertices(v3));
-            assert_eq!(v3_neighbours.len(), 3);
-        }
-
-        #[test]
         fn test_multiplicity_of_original_vertices() {
             let mut g = Contractable::new();
             let v = g.create_vertex();
@@ -261,21 +231,13 @@ mod graph {
 
             assert_eq!(g.num_vertices(), 4);
 
-            let v0_neighbours = Vec::from_iter(g.next_vertices(v0));
-            assert_eq!(v0_neighbours.len(), 1);
-
             assert_eq!(g.vertex_multiplicity(v1), 2);
-            let v1_neighbours = Vec::from_iter(g.next_vertices(v1));
-            assert_eq!(v1_neighbours.len(), 3);
             assert_eq!(g.edge_multiplicity(v0, v1), 2);
             assert_eq!(g.edge_multiplicity(v1, v2), 2);
             assert_eq!(g.edge_multiplicity(v1, v0), 2);
             assert_eq!(g.edge_multiplicity(v2, v1), 2);
             assert_eq!(g.edge_multiplicity(v1, v4), 1);
             assert_eq!(g.edge_multiplicity(v4, v1), 1);
-
-            let v2_neighbours = Vec::from_iter(g.next_vertices(v2));
-            assert_eq!(v2_neighbours.len(), 1);
         }
 
         #[test]
