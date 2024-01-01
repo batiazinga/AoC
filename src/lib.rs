@@ -19,3 +19,4 @@ pub mod reflection;
 pub mod rocks;
 pub mod sandslabs;
 pub mod scratchcard;
+pub mod snowverload;
